@@ -233,8 +233,7 @@ Valencia|Porlamar|17:00|18:00|4300|Vlo#9|L-S-D
 
 ### Eduardo Rivas (Módulo 3: Optimización, Ordenamiento e Informe) — EN PROGRESO
 - **Prolog (`prolog/optimizacion.pl`):**  Implementado y probado con `rutas.pl`.
-- **Haskell (`haskell/Optimizacion.hs`):**  Pendiente (creación de métricas, ordenamiento y óptimos).
-- **Informe Técnico Comparativo (`/docs/Informe_Tecnico_Comparativo.pdf`):** Pendiente (documento formal de 8 a 10 páginas comparando evaluación perezosa/inmutabilidad vs. backtracking/unificación).
+- **Haskell (`haskell/Optimizacion.hs`):**  Implementado (Falta hacer pruebas).
 
 ---
 
