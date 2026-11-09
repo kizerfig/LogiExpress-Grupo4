@@ -58,8 +58,11 @@ leer_lineas(Stream, Acc, Total) :-
     ;   normalize_space(string(Limpia), Linea),
         (   Limpia = ""
         ->  leer_lineas(Stream, Acc, Total)
-        ;   procesar_linea(Limpia),
-            NuevoAcc is Acc + 1,
+        ;   (   catch(procesar_linea(Limpia), Err,
+                      (format('~N[Error] Error al procesar linea: ~w (~w)~n', [Limpia, Err]), fail))
+            ->  NuevoAcc is Acc + 1
+            ;   NuevoAcc = Acc
+            ),
             leer_lineas(Stream, NuevoAcc, Total)
         )
     ).
@@ -67,11 +70,26 @@ leer_lineas(Stream, Acc, Total) :-
 % separa los campos y aserta el vuelo
 procesar_linea(LineaString) :-
     split_string(LineaString, "|", " \t\r\n", Partes),
-    Partes = [OrigStr, DestStr, SalidaStr, LlegadaStr, PrecioStr, IdStr, DiasStr],
+    (   Partes = [OrigStr, DestStr, SalidaStr, LlegadaStr, PrecioStr, IdStr, DiasStr]
+    ->  true
+    ;   format('~N[Error] Formato de registro invalido (esperados 7 campos): ~w~n', [LineaString]),
+        fail
+    ),
     atom_string(Origen, OrigStr),
     atom_string(Destino, DestStr),
+    (   Origen == Destino
+    ->  format('~N[Error] Origen y destino no pueden ser iguales en registro: ~w~n', [IdStr]),
+        fail
+    ;   true
+    ),
     hora_a_minutos(SalidaStr, SalidaMin),
     hora_a_minutos(LlegadaStr, LlegadaMin),
+    (   SalidaMin >= LlegadaMin
+    ->  format('~N[Error] Hora de llegada (~w) debe ser posterior a salida (~w) en registro ~w~n',
+               [LlegadaStr, SalidaStr, IdStr]),
+        fail
+    ;   true
+    ),
     number_string(PrecioVal, PrecioStr),          % leer como entero
     (   PrecioVal < 0
     ->  format('~N[Error] Precio negativo encontrado en registro: ~w~n', [PrecioStr]),

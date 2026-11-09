@@ -66,9 +66,18 @@ ejecutar_opcion("2") :- !,
     format('TMC actual: ~w minutos.~n', [TMCActual]),
     write('Ingrese nuevo TMC en minutos (ej. 45): '),
     leer_linea_texto(InputStr),
-    (   number_string(NuevoTMC, InputStr), integer(NuevoTMC), NuevoTMC >= 0
-    ->  establecer_tmc(NuevoTMC),
-        format('~N[Exito] TMC actualizado a ~w minutos.~n', [NuevoTMC])
+    (   number_string(NuevoTMC, InputStr), integer(NuevoTMC)
+    ->  (   NuevoTMC < 0
+        ->  writeln('[Error] El TMC no puede ser negativo.')
+        ;   establecer_tmc(NuevoTMC),
+            format('~N[Exito] TMC actualizado a ~w minutos.~n', [NuevoTMC]),
+            (   NuevoTMC < 15
+            ->  writeln(' [Aviso] Un TMC menor a 15 min es poco realista para conexiones fisicas.')
+            ;   NuevoTMC > 720
+            ->  writeln(' [Aviso] Un TMC superior a 12 horas (720 min) impedira conexiones en el mismo dia.')
+            ;   true
+            )
+        )
     ;   writeln('[Error] Valor invalido. Debe suministrar un numero entero.')
     ),
     pausar.
@@ -77,13 +86,19 @@ ejecutar_opcion("2") :- !,
 ejecutar_opcion("3") :- !,
     nl,
     writeln('--- Vuelos que salen de una ciudad ---'),
-    write('Ingrese nombre de la ciudad de origen (ej. Maiquetia, Pto Ordaz): '),
-    leer_linea_texto(CiudadStr),
-    (   CiudadStr == ""
-    ->  writeln('[Aviso] No ingreso una ciudad.')
-    ;   atom_string(Ciudad, CiudadStr),
-        vuelos_salen_de(Ciudad, Vuelos),
-        mostrar_tabla_vuelos(Vuelos, 'salen de', Ciudad)
+    (   verificar_base_datos
+    ->  write('Ingrese nombre de la ciudad de origen (ej. Maiquetia, Pto Ordaz): '),
+        leer_linea_texto(CiudadStr),
+        (   CiudadStr == ""
+        ->  writeln('[Aviso] No ingreso una ciudad.')
+        ;   normalizar_ciudad(CiudadStr, Ciudad),
+            (   validar_ciudad_existente('origen', Ciudad)
+            ->  vuelos_salen_de(Ciudad, Vuelos),
+                mostrar_tabla_vuelos(Vuelos, 'salen de', Ciudad)
+            ;   true
+            )
+        )
+    ;   true
     ),
     pausar.
 
@@ -91,13 +106,19 @@ ejecutar_opcion("3") :- !,
 ejecutar_opcion("4") :- !,
     nl,
     writeln('--- Vuelos que llegan a una ciudad ---'),
-    write('Ingrese nombre de la ciudad de destino (ej. Porlamar, Valencia): '),
-    leer_linea_texto(CiudadStr),
-    (   CiudadStr == ""
-    ->  writeln('[Aviso] No ingreso una ciudad.')
-    ;   atom_string(Ciudad, CiudadStr),
-        vuelos_llegan_a(Ciudad, Vuelos),
-        mostrar_tabla_vuelos(Vuelos, 'llegan a', Ciudad)
+    (   verificar_base_datos
+    ->  write('Ingrese nombre de la ciudad de destino (ej. Porlamar, Valencia): '),
+        leer_linea_texto(CiudadStr),
+        (   CiudadStr == ""
+        ->  writeln('[Aviso] No ingreso una ciudad.')
+        ;   normalizar_ciudad(CiudadStr, Ciudad),
+            (   validar_ciudad_existente('destino', Ciudad)
+            ->  vuelos_llegan_a(Ciudad, Vuelos),
+                mostrar_tabla_vuelos(Vuelos, 'llegan a', Ciudad)
+            ;   true
+            )
+        )
+    ;   true
     ),
     pausar.
 
@@ -106,19 +127,13 @@ ejecutar_opcion("5") :- !,
     nl,
     writeln('--- Buscar rutas validas ---'),
     (   current_predicate(buscar_rutas/5)
-    ->  capturar_parametros_busqueda(Origen, Destino, Dia, MaxEscalas),
-        (   Origen == Destino
-        ->  writeln('[Error] La ciudad origen y destino deben ser distintas.'), fail
-        ;   buscar_rutas(Origen, Destino, Dia, MaxEscalas, Rutas)
-        ),
-        (   Origen == Destino
-        ->  writeln('[Error] La ciudad origen y destino deben ser distintas.'),
-            fail
-        ;   buscar_rutas(Origen, Destino, Dia, MaxEscalas, Rutas),
+    ->  (   capturar_parametros_busqueda(Origen, Destino, Dia, MaxEscalas)
+        ->  buscar_rutas(Origen, Destino, Dia, MaxEscalas, Rutas),
             length(Rutas, Total),
             format('~NSe encontraron ~w rutas validas de "~w" a "~w" para el dia ~w:~n',
                    [Total, Origen, Destino, Dia]),
             mostrar_reporte_rutas(Rutas)
+        ;   true
         )
     ;   modulo_no_disponible('rutas.pl', 'Barbara Garcia')
     ),
@@ -129,14 +144,8 @@ ejecutar_opcion("6") :- !,
     nl,
     writeln('--- Ruta de menor costo ---'),
     (   (current_predicate(buscar_rutas/5), current_predicate(mejor_ruta_costo/3))
-    ->  capturar_parametros_busqueda(Origen, Destino, Dia, MaxEscalas),
-        (   Origen == Destino
-        ->  writeln('[Error] La ciudad origen y destino deben ser distintas.'), fail
-        ;   buscar_rutas(Origen, Destino, Dia, MaxEscalas, Rutas)
-        ),
-        (   Origen == Destino
-        ->  writeln('[Error] La ciudad origen y destino deben ser distintas.'), fail
-        ;   buscar_rutas(Origen, Destino, Dia, MaxEscalas, Rutas),
+    ->  (   capturar_parametros_busqueda(Origen, Destino, Dia, MaxEscalas)
+        ->  buscar_rutas(Origen, Destino, Dia, MaxEscalas, Rutas),
             (   Rutas == []
             ->  writeln('[Aviso] No se encontraron rutas validas con los datos ingresados.')
             ;   mejor_ruta_costo(Rutas, MejorRuta, CostoMin),
@@ -145,6 +154,7 @@ ejecutar_opcion("6") :- !,
                 writeln('--------------------------------------------------------------------'),
                 mostrar_detalle_ruta(1, MejorRuta)
             )
+        ;   true
         )
     ;   modulo_no_disponible('optimizacion.pl', 'Eduardo Rivas')
     ),
@@ -155,14 +165,8 @@ ejecutar_opcion("7") :- !,
     nl,
     writeln('--- Ruta de menor tiempo ---'),
     (   (current_predicate(buscar_rutas/5), current_predicate(mejor_ruta_tiempo/3))
-    ->  capturar_parametros_busqueda(Origen, Destino, Dia, MaxEscalas),
-        (   Origen == Destino
-        ->  writeln('[Error] La ciudad origen y destino deben ser distintas.'), fail
-        ;   buscar_rutas(Origen, Destino, Dia, MaxEscalas, Rutas)
-        ),
-        (   Origen == Destino
-        ->  writeln('[Error] La ciudad origen y destino deben ser distintas.'), fail
-        ;   buscar_rutas(Origen, Destino, Dia, MaxEscalas, Rutas),
+    ->  (   capturar_parametros_busqueda(Origen, Destino, Dia, MaxEscalas)
+        ->  buscar_rutas(Origen, Destino, Dia, MaxEscalas, Rutas),
             (   Rutas == []
             ->  writeln('[Aviso] No se encontraron rutas validas con los datos ingresados.')
             ;   mejor_ruta_tiempo(Rutas, MejorRuta, TiempoMin),
@@ -172,6 +176,7 @@ ejecutar_opcion("7") :- !,
                 writeln('--------------------------------------------------------------------'),
                 mostrar_detalle_ruta(1, MejorRuta)
             )
+        ;   true
         )
     ;   modulo_no_disponible('optimizacion.pl', 'Eduardo Rivas')
     ),
@@ -184,29 +189,27 @@ ejecutar_opcion("8") :- !,
     (   (current_predicate(buscar_rutas/5),
          current_predicate(quicksort_por_costo/2),
          current_predicate(quicksort_por_tiempo/2))
-    ->  capturar_parametros_busqueda(Origen, Destino, Dia, MaxEscalas),
-        (   Origen == Destino
-        ->  writeln('[Error] La ciudad origen y destino deben ser distintas.'), fail
-        ;   buscar_rutas(Origen, Destino, Dia, MaxEscalas, Rutas)
-        ),
-
-        (   Rutas == []
-        ->  writeln('[Aviso] No se encontraron rutas validas.')
-        ;   writeln('Seleccione el criterio de ordenamiento:'),
-            writeln('  1. Ordenar por menor costo'),
-            writeln('  2. Ordenar por menor tiempo'),
-            write('Criterio [1-2]: '),
-            leer_linea_texto(CritStr),
-            (   CritStr == "1"
-            ->  quicksort_por_costo(Rutas, Ordenadas),
-                writeln('>>> Rutas ordenadas por menor costo: <<<'),
-                mostrar_reporte_rutas(Ordenadas)
-            ;   CritStr == "2"
-            ->  quicksort_por_tiempo(Rutas, Ordenadas),
-                writeln('>>> Rutas ordenadas por menor tiempo: <<<'),
-                mostrar_reporte_rutas(Ordenadas)
-            ;   writeln('[Error] Criterio invalido.')
+    ->  (   capturar_parametros_busqueda(Origen, Destino, Dia, MaxEscalas)
+        ->  buscar_rutas(Origen, Destino, Dia, MaxEscalas, Rutas),
+            (   Rutas == []
+            ->  writeln('[Aviso] No se encontraron rutas validas.')
+            ;   writeln('Seleccione el criterio de ordenamiento:'),
+                writeln('  1. Ordenar por menor costo'),
+                writeln('  2. Ordenar por menor tiempo'),
+                write('Criterio [1-2]: '),
+                leer_linea_texto(CritStr),
+                (   CritStr == "1"
+                ->  quicksort_por_costo(Rutas, Ordenadas),
+                    writeln('>>> Rutas ordenadas por menor costo: <<<'),
+                    mostrar_reporte_rutas(Ordenadas)
+                ;   CritStr == "2"
+                ->  quicksort_por_tiempo(Rutas, Ordenadas),
+                    writeln('>>> Rutas ordenadas por menor tiempo: <<<'),
+                    mostrar_reporte_rutas(Ordenadas)
+                ;   writeln('[Error] Criterio invalido.')
+                )
             )
+        ;   true
         )
     ;   modulo_no_disponible('optimizacion.pl', 'Eduardo Rivas')
     ),
@@ -230,22 +233,109 @@ modulo_no_disponible(NombreModulo, Responsable) :-
     format(' Esta opcion necesita el archivo: ~w (~w)~n', [NombreModulo, Responsable]),
     writeln('--------------------------------------------------------------------').
 
-% pide los datos para buscar rutas
+% normaliza el dia ingresado a su atomo oficial (ej. L, M, Mi, J, V, S, D, Diario)
+normalizar_dia(Str, Dia) :-
+    string_lower(Str, Lower),
+    normalizar_dia_lower(Lower, Dia).
+
+normalizar_dia_lower("l", 'L').
+normalizar_dia_lower("lunes", 'L').
+normalizar_dia_lower("m", 'M').
+normalizar_dia_lower("martes", 'M').
+normalizar_dia_lower("mi", 'Mi').
+normalizar_dia_lower("miercoles", 'Mi').
+normalizar_dia_lower("miércoles", 'Mi').
+normalizar_dia_lower("j", 'J').
+normalizar_dia_lower("jueves", 'J').
+normalizar_dia_lower("v", 'V').
+normalizar_dia_lower("viernes", 'V').
+normalizar_dia_lower("s", 'S').
+normalizar_dia_lower("sabado", 'S').
+normalizar_dia_lower("sábado", 'S').
+normalizar_dia_lower("d", 'D').
+normalizar_dia_lower("domingo", 'D').
+normalizar_dia_lower("diario", 'Diario').
+
+% verifica que haya vuelos en la base de datos
+verificar_base_datos :-
+    vuelo(_, _, _, _, _, _, _), !.
+verificar_base_datos :-
+    writeln('[Aviso] No hay vuelos cargados en el sistema.'),
+    writeln('        Por favor, cargue la base de datos primero (Opcion 1).'),
+    fail.
+
+% obtiene las ciudades registradas en el sistema
+ciudades_disponibles(Ciudades) :-
+    findall(C, (vuelo(C,_,_,_,_,_,_) ; vuelo(_,C,_,_,_,_,_)), Lista),
+    sort(Lista, Ciudades).
+
+% valida si una ciudad existe en la base de datos
+validar_ciudad_existente(Rol, Ciudad) :-
+    ciudades_disponibles(Ciudades),
+    (   member(Ciudad, Ciudades)
+    ->  true
+    ;   format('~N[Error] La ciudad de ~w "~w" no existe en la base de datos.~n', [Rol, Ciudad]),
+        atomic_list_concat(Ciudades, ', ', ListaStr),
+        format('        Ciudades disponibles: ~w~n', [ListaStr]),
+        fail
+    ).
+
+% normaliza una ciudad ignorando mayusculas/minusculas y reconociendo alias comunes
+normalizar_ciudad(Str, CiudadOficial) :-
+    normalize_space(string(Limpia), Str),
+    (   Limpia == ""
+    ->  CiudadOficial = ''
+    ;   string_lower(Limpia, Lower),
+        (   Lower == "puerto ordaz"
+        ->  CiudadOficial = 'Pto Ordaz'
+        ;   ciudades_disponibles(Ciudades),
+            (   member(Oficial, Ciudades),
+                atom_string(Oficial, OfStr),
+                string_lower(OfStr, Lower)
+            ->  CiudadOficial = Oficial
+            ;   atom_string(CiudadOficial, Limpia)
+            )
+        )
+    ).
+
+% pide los datos para buscar rutas y valida
 capturar_parametros_busqueda(Origen, Destino, Dia, MaxEscalas) :-
+    verificar_base_datos,
     write('Ciudad de Origen: '),
     leer_linea_texto(OrigStr),
-    atom_string(Origen, OrigStr),
+    (   OrigStr == ""
+    ->  writeln('[Error] Debe ingresar una ciudad de origen.'), fail
+    ;   normalizar_ciudad(OrigStr, Origen),
+        validar_ciudad_existente('origen', Origen)
+    ),
     write('Ciudad de Destino: '),
     leer_linea_texto(DestStr),
-    atom_string(Destino, DestStr),
+    (   DestStr == ""
+    ->  writeln('[Error] Debe ingresar una ciudad de destino.'), fail
+    ;   normalizar_ciudad(DestStr, Destino),
+        validar_ciudad_existente('destino', Destino)
+    ),
+    (   Origen == Destino
+    ->  writeln('[Error] La ciudad origen y destino deben ser distintas.'), fail
+    ;   true
+    ),
     write('Dia de la semana (ej. Lunes, Martes o L, M, Mi, J, V, S, D): '),
     leer_linea_texto(DiaStr),
-    atom_string(Dia, DiaStr),
+    (   normalizar_dia(DiaStr, Dia)
+    ->  true
+    ;   writeln('[Error] Dia invalido. Use L, M, Mi, J, V, S, D o el nombre completo.'), fail
+    ),
     write('Maximo numero de escalas [Presione Enter para sin limite]: '),
     leer_linea_texto(EscStr),
     (   EscStr == ""
     ->  MaxEscalas = -1
-    ;   (number_string(MaxEscalas, EscStr) -> true ; MaxEscalas = -1)
+    ;   (   number_string(Num, EscStr), integer(Num)
+        ->  (   Num < 0
+            ->  writeln('[Error] El numero maximo de escalas no puede ser negativo.'), fail
+            ;   MaxEscalas = Num
+            )
+        ;   writeln('[Error] El numero de escalas debe ser un entero positivo o presione Enter para sin limite.'), fail
+        )
     ).
 
 % lee una linea limpia del teclado

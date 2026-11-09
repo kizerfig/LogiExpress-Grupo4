@@ -27,17 +27,23 @@ parsearLinea :: String -> Vuelo
 parsearLinea linea = case splitOn '|' linea of
     [orig, dest, salStr, llegStr, precStr, idV, diasStr] ->
         let precioVal = read precStr :: Int
+            salMin    = horaAMinutos salStr
+            llegMin   = horaAMinutos llegStr
         in if precioVal < 0
             then error $ "Precio negativo en registro: " ++ precStr
-            else Vuelo
-                { origen      = orig
-                , destino     = dest
-                , salida      = horaAMinutos salStr
-                , llegada     = horaAMinutos llegStr
-                , precio      = precioVal
-                , codigoVuelo = idV
-                , dias        = parsearDias diasStr
-                }
+            else if orig == dest
+                then error $ "Origen y destino no pueden ser iguales en registro: " ++ idV
+                else if salMin >= llegMin
+                    then error $ "Hora de llegada debe ser posterior a salida en registro: " ++ idV
+                    else Vuelo
+                        { origen      = orig
+                        , destino     = dest
+                        , salida      = salMin
+                        , llegada     = llegMin
+                        , precio      = precioVal
+                        , codigoVuelo = idV
+                        , dias        = parsearDias diasStr
+                        }
     _ -> error "Formato de linea invalido"
 
 cargarVuelos :: FilePath -> IO Grafo

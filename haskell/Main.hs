@@ -14,8 +14,8 @@ import Optimizacion
 
 import Control.Exception (catch, SomeException)
 import Control.Monad (when)
-import Data.Char (toUpper)
-import Data.List (intercalate)
+import Data.Char (toUpper, toLower, isSpace)
+import Data.List (intercalate, sort, nub)
 import System.IO (hFlush, stdout)
 import Text.Read (readMaybe)
 
@@ -113,6 +113,26 @@ bucleMenu grafo tmc = do
             pausar
             bucleMenu grafo tmc
 
+-- verifica que haya vuelos en memoria
+verificarBaseDatos :: Grafo -> IO Bool
+verificarBaseDatos g
+    | null g = do
+        putStrLn "[Aviso] No hay vuelos cargados en el sistema."
+        putStrLn "        Por favor, cargue la base de datos primero (Opcion 1)."
+        return False
+    | otherwise = return True
+
+-- valida si una ciudad existe en el grafo
+validarCiudadExistente :: String -> Ciudad -> Grafo -> IO Bool
+validarCiudadExistente rol c g = do
+    let disponibles = ciudadesGrafo g
+    if c `elem` disponibles
+        then return True
+        else do
+            putStrLn $ "[Error] La ciudad de " ++ rol ++ " \"" ++ c ++ "\" no existe en la base de datos."
+            putStrLn $ "        Ciudades disponibles: " ++ intercalate ", " disponibles
+            return False
+
 -- opcion 1 cargar base de datos
 opcionCargarBase :: Grafo -> IO (Grafo, ())
 opcionCargarBase grafoActual = do
@@ -121,16 +141,33 @@ opcionCargarBase grafoActual = do
     putStr "Ingrese la ruta del archivo [Enter para usar vuelos.txt por defecto]: "
     hFlush stdout
     rutaEntrada <- getLine
-    let ruta = if null rutaEntrada then "vuelos.txt" else rutaEntrada
-    resultado <- catch (do
-        g <- cargarVuelos ruta
-        putStrLn $ "[OK] Base de datos cargada exitosamente: " ++ show (length g) ++ " vuelos registrados."
-        return (g, ())
-        ) (\(e :: SomeException) -> do
-            putStrLn $ "[Error] No se pudo cargar el archivo: " ++ show e
-            return (grafoActual, ())
-        )
-    return resultado
+    let entrada = trim rutaEntrada
+    if null entrada
+        then do
+            g1 <- intentarCargar "vuelos.txt"
+            if not (null g1)
+                then do
+                    putStrLn $ "[OK] Base de datos cargada exitosamente: " ++ show (length g1) ++ " vuelos registrados."
+                    return (g1, ())
+                else do
+                    g2 <- intentarCargar "../vuelos.txt"
+                    if not (null g2)
+                        then do
+                            putStrLn $ "[OK] Base de datos cargada exitosamente: " ++ show (length g2) ++ " vuelos registrados."
+                            return (g2, ())
+                        else do
+                            putStrLn "[Error] No se encontro el archivo vuelos.txt en la ruta por defecto."
+                            return (grafoActual, ())
+        else do
+            resultado <- catch (do
+                g <- cargarVuelos entrada
+                putStrLn $ "[OK] Base de datos cargada exitosamente: " ++ show (length g) ++ " vuelos registrados."
+                return (g, ())
+                ) (\(e :: SomeException) -> do
+                    putStrLn $ "[Error] No se pudo cargar el archivo: " ++ show e
+                    return (grafoActual, ())
+                )
+            return resultado
 
 -- opcion 2 cambiar tmc
 opcionConfigurarTMC :: TMC -> IO TMC
@@ -141,10 +178,19 @@ opcionConfigurarTMC tmcActual = do
     putStr "Ingrese nuevo TMC en minutos (ej. 45): "
     hFlush stdout
     linea <- getLine
-    case readMaybe linea of
-        Just n | n >= 0 -> do
-            putStrLn $ "[Exito] TMC actualizado a " ++ show n ++ " minutos."
-            return n
+    case readMaybe (trim linea) of
+        Just n ->
+            if n < 0
+                then do
+                    putStrLn "[Error] El TMC no puede ser negativo."
+                    return tmcActual
+                else do
+                    putStrLn $ "[Exito] TMC actualizado a " ++ show n ++ " minutos."
+                    when (n < 15) $
+                        putStrLn " [Aviso] Un TMC menor a 15 min es poco realista para conexiones fisicas."
+                    when (n > 720) $
+                        putStrLn " [Aviso] Un TMC superior a 12 horas (720 min) impedira conexiones en el mismo dia."
+                    return n
         _ -> do
             putStrLn "[Error] Valor invalido. Debe suministrar un numero entero."
             return tmcActual
@@ -154,35 +200,45 @@ opcionVuelosSalen :: Grafo -> IO ()
 opcionVuelosSalen grafo = do
     putStrLn ""
     putStrLn "--- Vuelos que salen de una ciudad ---"
-    putStr "Ingrese nombre de la ciudad de origen (ej. Maiquetia, Pto Ordaz): "
-    hFlush stdout
-    ciudad <- getLine
-    if null ciudad
-        then putStrLn "[Aviso] No ingreso una ciudad."
-        else do
-            let vuelos = vuelosSalenDe ciudad grafo
-            mostrarTablaVuelos vuelos "salen de" ciudad
+    hayVuelos <- verificarBaseDatos grafo
+    when hayVuelos $ do
+        putStr "Ingrese nombre de la ciudad de origen (ej. Maiquetia, Pto Ordaz): "
+        hFlush stdout
+        ciudadRaw <- getLine
+        let ciudad = normalizarCiudad grafo (trim ciudadRaw)
+        if null ciudad
+            then putStrLn "[Aviso] No ingreso una ciudad."
+            else do
+                existe <- validarCiudadExistente "origen" ciudad grafo
+                when existe $ do
+                    let vuelos = vuelosSalenDe ciudad grafo
+                    mostrarTablaVuelos vuelos "salen de" ciudad
 
 -- opcion 4 llegadas
 opcionVuelosLlegan :: Grafo -> IO ()
 opcionVuelosLlegan grafo = do
     putStrLn ""
     putStrLn "--- Vuelos que llegan a una ciudad ---"
-    putStr "Ingrese nombre de la ciudad de destino (ej. Porlamar, Valencia): "
-    hFlush stdout
-    ciudad <- getLine
-    if null ciudad
-        then putStrLn "[Aviso] No ingreso una ciudad."
-        else do
-            let vuelos = vuelosLleganA ciudad grafo
-            mostrarTablaVuelos vuelos "llegan a" ciudad
+    hayVuelos <- verificarBaseDatos grafo
+    when hayVuelos $ do
+        putStr "Ingrese nombre de la ciudad de destino (ej. Porlamar, Valencia): "
+        hFlush stdout
+        ciudadRaw <- getLine
+        let ciudad = normalizarCiudad grafo (trim ciudadRaw)
+        if null ciudad
+            then putStrLn "[Aviso] No ingreso una ciudad."
+            else do
+                existe <- validarCiudadExistente "destino" ciudad grafo
+                when existe $ do
+                    let vuelos = vuelosLleganA ciudad grafo
+                    mostrarTablaVuelos vuelos "llegan a" ciudad
 
 -- opcion 5 buscar rutas
 opcionBuscarRutas :: Grafo -> TMC -> IO ()
 opcionBuscarRutas grafo tmc = do
     putStrLn ""
     putStrLn "--- Buscar rutas validas ---"
-    params <- capturarParametros
+    params <- capturarParametros grafo
     case params of
         Nothing -> return ()
         Just (orig, dest, dia, maxEsc) -> do
@@ -196,7 +252,7 @@ opcionMejorCosto :: Grafo -> TMC -> IO ()
 opcionMejorCosto grafo tmc = do
     putStrLn ""
     putStrLn "--- Ruta de menor costo ---"
-    params <- capturarParametros
+    params <- capturarParametros grafo
     case params of
         Nothing -> return ()
         Just (orig, dest, dia, maxEsc) -> do
@@ -214,7 +270,7 @@ opcionMejorTiempo :: Grafo -> TMC -> IO ()
 opcionMejorTiempo grafo tmc = do
     putStrLn ""
     putStrLn "--- Ruta de menor tiempo ---"
-    params <- capturarParametros
+    params <- capturarParametros grafo
     case params of
         Nothing -> return ()
         Just (orig, dest, dia, maxEsc) -> do
@@ -234,7 +290,7 @@ opcionReporteOrdenado :: Grafo -> TMC -> IO ()
 opcionReporteOrdenado grafo tmc = do
     putStrLn ""
     putStrLn "--- Reporte ordenado de rutas ---"
-    params <- capturarParametros
+    params <- capturarParametros grafo
     case params of
         Nothing -> return ()
         Just (orig, dest, dia, maxEsc) -> do
@@ -248,7 +304,7 @@ opcionReporteOrdenado grafo tmc = do
                     putStr "Criterio [1-2]: "
                     hFlush stdout
                     crit <- getLine
-                    case crit of
+                    case trim crit of
                         "1" -> do
                             let ordenadas = quicksortPorCosto rutas
                             putStrLn ">>> Rutas ordenadas por menor costo: <<<"
@@ -259,34 +315,82 @@ opcionReporteOrdenado grafo tmc = do
                             mostrarReporteRutas ordenadas
                         _ -> putStrLn "[Error] Criterio invalido."
 
--- pide origen destino dia y escalas
-capturarParametros :: IO (Maybe (Ciudad, Ciudad, Dia, Maybe Int))
-capturarParametros = do
-    putStr "Ciudad de Origen: "
-    hFlush stdout
-    orig <- getLine
-    putStr "Ciudad de Destino: "
-    hFlush stdout
-    dest <- getLine
-    if orig == dest
-        then do
-            putStrLn "[Error] La ciudad origen y destino deben ser distintas."
-            return Nothing
-        else do
-            putStr "Dia de la semana (ej. Lunes, Martes o L, M, Mi, J, V, S, D): "
-            hFlush stdout
-            diaStr <- getLine
-            case parsearDiaUsuario diaStr of
-                Nothing -> do
-                    putStrLn "[Error] Dia invalido. Use L, M, Mi, J, V, S, D o el nombre completo."
-                    return Nothing
-                Just dia -> do
-                    putStr "Maximo numero de escalas [Presione Enter para sin limite]: "
-                    hFlush stdout
-                    escStr <- getLine
-                    let maxEsc = if null escStr then Nothing else readMaybe escStr
-                    return (Just (orig, dest, dia, maxEsc))
+-- elimina espacios en blanco al inicio y al final
+trim :: String -> String
+trim = f . f
+  where f = reverse . dropWhile isSpace
 
+-- extrae todas las ciudades presentes en el grafo ordenadas alfabeticamente
+ciudadesGrafo :: Grafo -> [Ciudad]
+ciudadesGrafo g = sort $ nub [c | v <- g, c <- [origen v, destino v]]
+
+-- normaliza el nombre de la ciudad permitiendo minusculas y alias comunes
+normalizarCiudad :: Grafo -> String -> Ciudad
+normalizarCiudad g input
+    | map toLower input == "puerto ordaz" = "Pto Ordaz"
+    | otherwise = case filter (\c -> map toLower c == map toLower input) (ciudadesGrafo g) of
+        (c:_) -> c
+        []    -> input
+
+-- pide origen, destino, dia y escalas con validaciones completas
+capturarParametros :: Grafo -> IO (Maybe (Ciudad, Ciudad, Dia, Maybe Int))
+capturarParametros grafo = do
+    hayVuelos <- verificarBaseDatos grafo
+    if not hayVuelos
+        then return Nothing
+        else do
+            putStr "Ciudad de Origen: "
+            hFlush stdout
+            origRaw <- getLine
+            let orig = normalizarCiudad grafo (trim origRaw)
+            if null orig
+                then do
+                    putStrLn "[Error] Debe ingresar una ciudad de origen."
+                    return Nothing
+                else do
+                    esOrigValido <- validarCiudadExistente "origen" orig grafo
+                    if not esOrigValido
+                        then return Nothing
+                        else do
+                            putStr "Ciudad de Destino: "
+                            hFlush stdout
+                            destRaw <- getLine
+                            let dest = normalizarCiudad grafo (trim destRaw)
+                            if null dest
+                                then do
+                                    putStrLn "[Error] Debe ingresar una ciudad de destino."
+                                    return Nothing
+                                else do
+                                    esDestValido <- validarCiudadExistente "destino" dest grafo
+                                    if not esDestValido
+                                        then return Nothing
+                                        else if orig == dest
+                                            then do
+                                                putStrLn "[Error] La ciudad origen y destino deben ser distintas."
+                                                return Nothing
+                                            else do
+                                                putStr "Dia de la semana (ej. Lunes, Martes o L, M, Mi, J, V, S, D): "
+                                                hFlush stdout
+                                                diaStr <- getLine
+                                                case parsearDiaUsuario (trim diaStr) of
+                                                    Nothing -> do
+                                                        putStrLn "[Error] Dia invalido. Use L, M, Mi, J, V, S, D o el nombre completo."
+                                                        return Nothing
+                                                    Just dia -> do
+                                                        putStr "Maximo numero de escalas [Presione Enter para sin limite]: "
+                                                        hFlush stdout
+                                                        escStr <- getLine
+                                                        let limpiaEsc = trim escStr
+                                                        if null limpiaEsc
+                                                            then return (Just (orig, dest, dia, Nothing))
+                                                            else case readMaybe limpiaEsc of
+                                                                Just n | n < 0 -> do
+                                                                    putStrLn "[Error] El numero maximo de escalas no puede ser negativo."
+                                                                    return Nothing
+                                                                Just n -> return (Just (orig, dest, dia, Just n))
+                                                                Nothing -> do
+                                                                    putStrLn "[Error] El numero de escalas debe ser un entero positivo o presione Enter para sin limite."
+                                                                    return Nothing
 
 -- convierte lo que escribe el usuario a dia
 parsearDiaUsuario :: String -> Maybe Dia
