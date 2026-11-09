@@ -162,7 +162,9 @@ Valencia|Porlamar|17:00|18:00|4300|Vlo#9|L-S-D
 | :--- | :--- | :---: |
 | **Kizer Ellioth** | **Módulo 1:** Carga, Parseo, TMC y Consultas Básicas + Menú CLI Base | `Completado` ✅ |
 | **Garcia Barbara** | **Módulo 2:** Motor de Búsqueda Avanzada de Rutas y Restricciones | `Completado` ✅ |
-| **Rivas Eduardo** | **Módulo 3:** Optimización, Ordenamiento e Informe Técnico | `En progreso` ⏳ |
+| **Rivas Eduardo** | **Módulo 3:** Optimización, Métricas y Algoritmo Quicksort | `Completado` ✅ |
+
+> **Nota de Colaboración:** La **documentación técnica general**, las pruebas cruzadas y la redacción/análisis del **Informe Técnico Comparativo** fueron desarrollados y consolidados de manera **conjunta y colaborativa entre los tres integrantes del equipo**.
 
 ---
 
@@ -175,23 +177,27 @@ Valencia|Porlamar|17:00|18:00|4300|Vlo#9|L-S-D
   - Conversión bidireccional entre horas `HH:MM` y minutos absolutos (`hora_a_minutos/2`, `minutos_a_hora/2`).
   - Configuración y consulta global del TMC (`obtener_tmc/1`, `establecer_tmc/1`).
   - Carga dinámica desde archivo con delimitador `|` (`cargar_vuelos/1`, `cargar_vuelos_defecto/0`).
+  - Validaciones de integridad en parseo: precios negativos, vuelos con llegada anterior o igual a salida y rechazo de registros con origen igual a destino.
   - Consultas elementales de salidas (`vuelos_salen_de/2`) y llegadas (`vuelos_llegan_a/2`).
 
 - **`prolog/rutas.pl` (Garcia Barbara - Módulo 2):**
-  - Validación de frecuencias y días (`dia_compatible/2`) para días específicos y vuelos diarios.
+  - Validación de frecuencias y días (`dia_compatible/2`) para días específicos y vuelos diarios (`Diario`).
   - Validación rigurosa de ventana temporal de conexión TMC (`cumple_tmc/3`).
   - Motor recursivo de búsqueda DFS con acumulador de visitados para aciclicidad y decremento de escalas (`buscar_ruta_dfs/8`).
   - Predicado público `buscar_rutas/5` con recopilación exhaustiva vía `findall/3` y soporte de escalas ilimitadas (`MaxEscalas = -1`).
-  - Integrado y probado con `main.pl` (opción 5 del menú) y habilitando el cálculo de métricas en opciones 6, 7 y 8.
+  - Integrado y probado con `main.pl` (opciones 5, 6, 7 y 8 del menú).
 
 - **`prolog/optimizacion.pl` (Rivas Eduardo - Módulo 3):**
-  - Métricas de ruta: `costo_total_ruta/2` y `tiempo_total_viaje/2` (diferencia llegada final y salida inicial).
+  - Métricas de ruta: `costo_total_ruta/2` y `tiempo_total_viaje/2` (diferencia llegada final y salida inicial, incluyendo esperas en conexión).
   - Implementación recursiva de **Quicksort puro** sobre listas de rutas (`quicksort_por_costo/2`, `quicksort_por_tiempo/2`).
   - Selección de óptimos: `mejor_ruta_costo/3` y `mejor_ruta_tiempo/3`.
   - Integración completada con `rutas.pl`: opciones 6, 7 y 8 operativas en consola.
 
 - **`prolog/main.pl` (Kizer Ellioth - CLI):**
   - Menú interactivo CLI con 9 opciones y puntos de entrada `iniciar/0` y `menu/0`.
+  - Normalizador inteligente de días (`normalizar_dia/2`): reconoce `L`, `lunes`, `M`, `martes`, etc.
+  - Normalizador de ciudades (`normalizar_ciudad/2`): insensible a mayúsculas/minúsculas y reconocimiento de alias (`puerto ordaz` $\rightarrow$ `Pto Ordaz`).
+  - Validaciones robustas: origen $\ne$ destino, existencia de ciudades en la BD, escalas no negativas, rangos del TMC y protección contra BD vacía.
   - Formateo detallado de itinerarios y reportes de conexiones intermedias con tiempos de espera.
 
 ---
@@ -206,6 +212,7 @@ Valencia|Porlamar|17:00|18:00|4300|Vlo#9|L-S-D
 - **`haskell/Parser.hs` (Kizer Ellioth - Módulo 1):**
   - Algoritmo puro de tokenización `splitOn :: Char -> String -> [String]`.
   - Parseo funcional de líneas y frecuencias a tipos algebraicos (`parsearLinea`, `parsearDias`, `parsearDia`).
+  - Validaciones de integridad: precio negativo, origen igual a destino y hora de salida menor a hora de llegada.
   - Carga con I/O a estructura inmutable (`cargarVuelos :: FilePath -> IO Grafo`).
   - Consultas sobre listas con funciones de orden superior: `vuelosSalenDe` y `vuelosLleganA`.
 
@@ -215,28 +222,26 @@ Valencia|Porlamar|17:00|18:00|4300|Vlo#9|L-S-D
   - Algoritmo DFS funcional sobre grafos inmutables con *list comprehensions*, prevención de ciclos y límite de saltos (`dfs`).
   - Función pública exportada: `buscarRutas :: Grafo -> Ciudad -> Ciudad -> Dia -> Maybe Int -> TMC -> [Ruta]`.
 
-- **`haskell/main.hs` (Integración de Módulo 2):**
-  - Funciones de presentación: `mostrarVuelo` y `mostrarRutas`.
-  - Función de ejecución pura de búsqueda: `ejecutarBusqueda`.
-  - Punto de entrada ejecutable `main` validado y compilado exitosamente con GHC (`LogiExpressCLI.exe`).
+- **`haskell/Optimizacion.hs` (Rivas Eduardo - Módulo 3):**
+  - Cálculo de métricas: `costoTotalRuta` y `tiempoTotalViaje`.
+  - Implementación funcional de Quicksort: `quicksortPorCosto` y `quicksortPorTiempo`.
+  - Selección funcional de óptimos: `mejorRutaCosto` y `mejorRutaTiempo`.
+
+- **`haskell/Main.hs` (Kizer Ellioth - CLI):**
+  - Menú interactivo por consola con las 9 opciones análogas a Prolog.
+  - Detección automática y flexible de la ruta de `vuelos.txt` (`vuelos.txt` y `../vuelos.txt`).
+  - Normalizador de días (`parsearDiaUsuario`) y normalizador de ciudades (`normalizarCiudad`).
+  - Validaciones completas: ciudades existentes, origen $\ne$ destino, escalas positivas y TMC coherente.
+  - Compilado y verificado en binario nativo optimizado con GHC (`LogiExpress.exe`).
 
 ---
 
-## 9. Hoja de Ruta y Próximos Pasos
+## 9. Estado Final del Proyecto
 
-### Barbara Garcia (Módulo 2: Motor de Rutas y Restricciones) — COMPLETADO
-- **Prolog (`prolog/rutas.pl`):**  Completado
-- **Haskell (`haskell/Rutas.hs`):**  Completado
-- **Pendientes:** Ninguno.
+**PROYECTO 100% COMPLETADO Y OPERATIVO** ✅
 
----
-
-### Eduardo Rivas (Módulo 3: Optimización, Ordenamiento e Informe) — EN PROGRESO
-- **Prolog (`prolog/optimizacion.pl`):**  Implementado y probado con `rutas.pl`.
-- **Haskell (`haskell/Optimizacion.hs`):**  Implementado (Falta hacer pruebas).
-
----
-
-### ⏳ Cierre del Equipo (Todos)
-- **`haskell/main.hs`:** Integrar el menú interactivo completo con las opciones del Módulo 3 una vez completado `Optimizacion.hs`.
-- **Etiqueta Final:** Congelar rama principal y crear tag `v1.0-final` antes de la fecha límite (08/11/2026).
+- **Paradigma Lógico (Prolog):** Completado, probado y validado al 100%.
+- **Paradigma Funcional (Haskell):** Completado, probado y validado al 100%.
+- **Base de Datos (`vuelos.txt`):** Estructurada y validada con 20 vuelos interurbanos.
+- **Documentación e Informe Técnico:** Finalizado y consolidado en conjunto por los tres integrantes del equipo (**Kizer Ellioth, Garcia Barbara, Rivas Eduardo**).
+- **Control de Versiones:** Repositorio limpio y listo para entrega final.
