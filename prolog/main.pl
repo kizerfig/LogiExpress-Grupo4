@@ -107,11 +107,19 @@ ejecutar_opcion("5") :- !,
     writeln('--- Buscar rutas validas ---'),
     (   current_predicate(buscar_rutas/5)
     ->  capturar_parametros_busqueda(Origen, Destino, Dia, MaxEscalas),
-        buscar_rutas(Origen, Destino, Dia, MaxEscalas, Rutas),
-        length(Rutas, Total),
-        format('~NSe encontraron ~w rutas validas de "~w" a "~w" para el dia ~w:~n',
-               [Total, Origen, Destino, Dia]),
-        mostrar_reporte_rutas(Rutas)
+        (   Origen == Destino
+        ->  writeln('[Error] La ciudad origen y destino deben ser distintas.'), fail
+        ;   buscar_rutas(Origen, Destino, Dia, MaxEscalas, Rutas)
+        ),
+        (   Origen == Destino
+        ->  writeln('[Error] La ciudad origen y destino deben ser distintas.'),
+            fail
+        ;   buscar_rutas(Origen, Destino, Dia, MaxEscalas, Rutas),
+            length(Rutas, Total),
+            format('~NSe encontraron ~w rutas validas de "~w" a "~w" para el dia ~w:~n',
+                   [Total, Origen, Destino, Dia]),
+            mostrar_reporte_rutas(Rutas)
+        )
     ;   modulo_no_disponible('rutas.pl', 'Barbara Garcia')
     ),
     pausar.
@@ -122,14 +130,21 @@ ejecutar_opcion("6") :- !,
     writeln('--- Ruta de menor costo ---'),
     (   (current_predicate(buscar_rutas/5), current_predicate(mejor_ruta_costo/3))
     ->  capturar_parametros_busqueda(Origen, Destino, Dia, MaxEscalas),
-        buscar_rutas(Origen, Destino, Dia, MaxEscalas, Rutas),
-        (   Rutas == []
-        ->  writeln('[Aviso] No se encontraron rutas validas con los datos ingresados.')
-        ;   mejor_ruta_costo(Rutas, MejorRuta, CostoMin),
-            writeln('--------------------------------------------------------------------'),
-            format('>>> Ruta de menor costo (Total: $~w) <<<~n', [CostoMin]),
-            writeln('--------------------------------------------------------------------'),
-            mostrar_detalle_ruta(1, MejorRuta)
+        (   Origen == Destino
+        ->  writeln('[Error] La ciudad origen y destino deben ser distintas.'), fail
+        ;   buscar_rutas(Origen, Destino, Dia, MaxEscalas, Rutas)
+        ),
+        (   Origen == Destino
+        ->  writeln('[Error] La ciudad origen y destino deben ser distintas.'), fail
+        ;   buscar_rutas(Origen, Destino, Dia, MaxEscalas, Rutas),
+            (   Rutas == []
+            ->  writeln('[Aviso] No se encontraron rutas validas con los datos ingresados.')
+            ;   mejor_ruta_costo(Rutas, MejorRuta, CostoMin),
+                writeln('--------------------------------------------------------------------'),
+                format('>>> Ruta de menor costo (Total: $~w) <<<~n', [CostoMin]),
+                writeln('--------------------------------------------------------------------'),
+                mostrar_detalle_ruta(1, MejorRuta)
+            )
         )
     ;   modulo_no_disponible('optimizacion.pl', 'Eduardo Rivas')
     ),
@@ -141,15 +156,22 @@ ejecutar_opcion("7") :- !,
     writeln('--- Ruta de menor tiempo ---'),
     (   (current_predicate(buscar_rutas/5), current_predicate(mejor_ruta_tiempo/3))
     ->  capturar_parametros_busqueda(Origen, Destino, Dia, MaxEscalas),
-        buscar_rutas(Origen, Destino, Dia, MaxEscalas, Rutas),
-        (   Rutas == []
-        ->  writeln('[Aviso] No se encontraron rutas validas con los datos ingresados.')
-        ;   mejor_ruta_tiempo(Rutas, MejorRuta, TiempoMin),
-            Horas is TiempoMin // 60, Minutos is TiempoMin mod 60,
-            writeln('--------------------------------------------------------------------'),
-            format('>>> Ruta de menor tiempo (Duracion: ~w min [~wh ~wm]) <<<~n', [TiempoMin, Horas, Minutos]),
-            writeln('--------------------------------------------------------------------'),
-            mostrar_detalle_ruta(1, MejorRuta)
+        (   Origen == Destino
+        ->  writeln('[Error] La ciudad origen y destino deben ser distintas.'), fail
+        ;   buscar_rutas(Origen, Destino, Dia, MaxEscalas, Rutas)
+        ),
+        (   Origen == Destino
+        ->  writeln('[Error] La ciudad origen y destino deben ser distintas.'), fail
+        ;   buscar_rutas(Origen, Destino, Dia, MaxEscalas, Rutas),
+            (   Rutas == []
+            ->  writeln('[Aviso] No se encontraron rutas validas con los datos ingresados.')
+            ;   mejor_ruta_tiempo(Rutas, MejorRuta, TiempoMin),
+                Horas is TiempoMin // 60, Minutos is TiempoMin mod 60,
+                writeln('--------------------------------------------------------------------'),
+                format('>>> Ruta de menor tiempo (Duracion: ~w min [~wh ~wm]) <<<~n', [TiempoMin, Horas, Minutos]),
+                writeln('--------------------------------------------------------------------'),
+                mostrar_detalle_ruta(1, MejorRuta)
+            )
         )
     ;   modulo_no_disponible('optimizacion.pl', 'Eduardo Rivas')
     ),
@@ -163,7 +185,11 @@ ejecutar_opcion("8") :- !,
          current_predicate(quicksort_por_costo/2),
          current_predicate(quicksort_por_tiempo/2))
     ->  capturar_parametros_busqueda(Origen, Destino, Dia, MaxEscalas),
-        buscar_rutas(Origen, Destino, Dia, MaxEscalas, Rutas),
+        (   Origen == Destino
+        ->  writeln('[Error] La ciudad origen y destino deben ser distintas.'), fail
+        ;   buscar_rutas(Origen, Destino, Dia, MaxEscalas, Rutas)
+        ),
+
         (   Rutas == []
         ->  writeln('[Aviso] No se encontraron rutas validas.')
         ;   writeln('Seleccione el criterio de ordenamiento:'),

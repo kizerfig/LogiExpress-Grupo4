@@ -72,10 +72,16 @@ procesar_linea(LineaString) :-
     atom_string(Destino, DestStr),
     hora_a_minutos(SalidaStr, SalidaMin),
     hora_a_minutos(LlegadaStr, LlegadaMin),
-    number_string(Precio, PrecioStr),
+    number_string(PrecioVal, PrecioStr),          % leer como entero
+    (   PrecioVal < 0
+    ->  format('~N[Error] Precio negativo encontrado en registro: ~w~n', [PrecioStr]),
+        fail                                      % aborta la carga de esa línea
+    ;   true
+    ),
     atom_string(IDVuelo, IdStr),
     parsear_dias(DiasStr, ListaDias),
-    assertz(vuelo(Origen, Destino, SalidaMin, LlegadaMin, Precio, IDVuelo, ListaDias)).
+    assertz(vuelo(Origen, Destino, SalidaMin, LlegadaMin,
+                  PrecioVal, IDVuelo, ListaDias)).
 
 % pasa los dias a lista de atomos
 parsear_dias("Diario", ['Diario']) :- !.

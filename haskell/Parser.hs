@@ -26,15 +26,18 @@ parsearDias str      = map parsearDia (splitOn '-' str)
 parsearLinea :: String -> Vuelo
 parsearLinea linea = case splitOn '|' linea of
     [orig, dest, salStr, llegStr, precStr, idV, diasStr] ->
-        Vuelo
-            { origen      = orig
-            , destino     = dest
-            , salida      = horaAMinutos salStr
-            , llegada     = horaAMinutos llegStr
-            , precio      = read precStr
-            , codigoVuelo = idV
-            , dias        = parsearDias diasStr
-            }
+        let precioVal = read precStr :: Int
+        in if precioVal < 0
+            then error $ "Precio negativo en registro: " ++ precStr
+            else Vuelo
+                { origen      = orig
+                , destino     = dest
+                , salida      = horaAMinutos salStr
+                , llegada     = horaAMinutos llegStr
+                , precio      = precioVal
+                , codigoVuelo = idV
+                , dias        = parsearDias diasStr
+                }
     _ -> error "Formato de linea invalido"
 
 cargarVuelos :: FilePath -> IO Grafo

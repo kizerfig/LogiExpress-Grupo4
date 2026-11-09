@@ -268,19 +268,25 @@ capturarParametros = do
     putStr "Ciudad de Destino: "
     hFlush stdout
     dest <- getLine
-    putStr "Dia de la semana (ej. Lunes, Martes o L, M, Mi, J, V, S, D): "
-    hFlush stdout
-    diaStr <- getLine
-    case parsearDiaUsuario diaStr of
-        Nothing -> do
-            putStrLn "[Error] Dia invalido. Use L, M, Mi, J, V, S, D o el nombre completo."
+    if orig == dest
+        then do
+            putStrLn "[Error] La ciudad origen y destino deben ser distintas."
             return Nothing
-        Just dia -> do
-            putStr "Maximo numero de escalas [Presione Enter para sin limite]: "
+        else do
+            putStr "Dia de la semana (ej. Lunes, Martes o L, M, Mi, J, V, S, D): "
             hFlush stdout
-            escStr <- getLine
-            let maxEsc = if null escStr then Nothing else readMaybe escStr
-            return (Just (orig, dest, dia, maxEsc))
+            diaStr <- getLine
+            case parsearDiaUsuario diaStr of
+                Nothing -> do
+                    putStrLn "[Error] Dia invalido. Use L, M, Mi, J, V, S, D o el nombre completo."
+                    return Nothing
+                Just dia -> do
+                    putStr "Maximo numero de escalas [Presione Enter para sin limite]: "
+                    hFlush stdout
+                    escStr <- getLine
+                    let maxEsc = if null escStr then Nothing else readMaybe escStr
+                    return (Just (orig, dest, dia, maxEsc))
+
 
 -- convierte lo que escribe el usuario a dia
 parsearDiaUsuario :: String -> Maybe Dia
